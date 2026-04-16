@@ -2,22 +2,32 @@ pipeline {
     agent any
 
     environment {
-        REG = "192.168.3.236/assettrack"
+        REGISTRY = "192.168.3.236/assettrack"
+        HARBOR_CREDS = credentials('harbor-creds')
     }
 
     stages {
 
-        stage('Login Harbor') {
+        stage('Checkout Code') {
             steps {
-                sh 'docker login 192.168.3.236 -u admin -p Harbor12345'
+                git branch: 'main', url: 'https://github.com/Thiyagarajan7/assettrack-app.git'
             }
         }
 
-        stage('Build Base') {
+        stage('Docker Login') {
             steps {
                 sh '''
-                docker build -t $REG/base:latest -f docker/base.Dockerfile .
-                docker push $REG/base:latest
+                echo $HARBOR_CREDS_PSW | docker login 192.168.3.236 \
+                -u $HARBOR_CREDS_USR --password-stdin
+                '''
+            }
+        }
+
+        stage('Build Base Image') {
+            steps {
+                sh '''
+                docker build -t $REGISTRY/base:latest -f docker/base.Dockerfile .
+                docker push $REGISTRY/base:latest
                 '''
             }
         }
@@ -26,10 +36,10 @@ pipeline {
             steps {
                 script {
                     def services = ["api","agent","collector","processor","webapp"]
-                    for (s in services) {
+                    for (svc in services) {
                         sh """
-                        docker build -t $REG/${s}:v1 -f docker/${s}.Dockerfile .
-                        docker push $REG/${s}:v1
+                        docker build -t $REGISTRY/${svc}:v1 -f docker/${svc}.Dockerfile .
+                        docker push $REGISTRY/${svc}:v1
                         """
                     }
                 }
